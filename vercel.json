@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "pom.xml",
+      "use": "vercel-community/java"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/"
+    }
+  ],
+  "env": {
+    "SPRING_DATA_MONGODB_URI": "@mongodb_uri_common",
+    "APP_CORS_ALLOWED_ORIGINS": "@cors_origins"
+  }
+}
