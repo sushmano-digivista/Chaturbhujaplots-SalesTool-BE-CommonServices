@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # Common Service — Anjana Paradise Platform
 
 Microservice responsible for **media upload, storage and serving** (images and videos) for the Anjana Paradise real estate platform.
@@ -92,4 +91,3 @@ src/
 =======
 # Chaturbhujaplots-SalesTool-BE-CommonServices
 This repo is created to maintain the backend application to facilitate all other common services which includes gallery photos, videos, contact details etc.,
->>>>>>> abb01683f6b42b5f8be7e75b93ce9203f2ca71e0
