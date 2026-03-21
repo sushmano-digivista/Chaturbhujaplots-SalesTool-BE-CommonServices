@@ -1,49 +1,7 @@
-# Maven
-target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-
-# IntelliJ IDEA
-.idea/
-*.iws
-*.iml
-*.ipr
-out/
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# Eclipse
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-
-# Spring Boot
-*.log
-logs/
-
-# Uploads directory (runtime generated)
+node_modules/
+.env
 uploads/
-*.tmp
-
-# OS
+*.log
+dist/
 .DS_Store
 Thumbs.db
-
-# Docker
-.dockerignore
-
-# Environment / secrets — never commit
-.env
-.env.local
-*.secret
-
-# Test coverage
-target/site/
-jacoco.exec
