@@ -27,7 +27,6 @@ PATCH /api/v1/media/:id             Update metadata
 DELETE /api/v1/media/:id            Soft delete
 GET  /health                        Health check
 ```
-
 ## Deploy on Vercel
 1. Push to GitHub
 2. Import on vercel.com
