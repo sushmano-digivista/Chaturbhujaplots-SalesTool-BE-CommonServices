@@ -6,8 +6,14 @@ const { v4: uuid } = require('uuid')
 const MediaAsset  = require('../models/media.model')
 
 // ── Storage ───────────────────────────────────────────────────────────────────
-const uploadDir = process.env.UPLOAD_DIR || './uploads'
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+const uploadDir = process.env.UPLOAD_DIR || '/tmp/uploads'
+
+// Safely create upload directory — works on Vercel (/tmp is writable)
+try {
+  if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+} catch (err) {
+  console.warn('Could not create upload dir:', err.message)
+}
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadDir),
