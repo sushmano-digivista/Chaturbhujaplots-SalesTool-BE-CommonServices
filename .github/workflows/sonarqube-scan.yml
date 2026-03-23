@@ -41,13 +41,14 @@ jobs:
         continue-on-error: true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v4
+        uses: SonarSource/sonarqube-scan-action@v6
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_SCANNER_OPTS: "-Dsonar.qualitygate.wait=false"
 
       - name: SonarCloud Summary
         if: always()
         run: |
           echo "## SonarCloud Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "Results available at: https://sonarcloud.io/project/overview?id=sushmano-digivista_${GITHUB_REPOSITORY#*/}" >> $GITHUB_STEP_SUMMARY
+          echo "Results: https://sonarcloud.io/project/overview?id=sushmano-digivista_${GITHUB_REPOSITORY#*/}" >> $GITHUB_STEP_SUMMARY
