@@ -1,4 +1,4 @@
-name: "Security & Quality Scan - BE-CommonServices"
+name: "CI Pipeline - BE-CommonServices"
 
 on:
   push:
@@ -19,40 +19,82 @@ permissions:
   security-events: write
 
 jobs:
+  # ── 1. Test ──────────────────────────────────────────────────────────────────
+  build-and-test:
+    name: "Test"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Tests with Coverage
+        run: npm test
+        env:
+          CI: true
+          NODE_ENV: test
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage/lcov.info
+          retention-days: 7
+
+  # ── 2. CodeQL SAST ──────────────────────────────────────────────────────────
   codeql:
     name: "CodeQL SAST"
+    needs: build-and-test
     uses: ./.github/workflows/codeql-scan.yml
     with:
       language: javascript
 
+  # ── 3. Trivy Vulnerability Scan ─────────────────────────────────────────────
   trivy:
     name: "Trivy Vulnerability Scan"
+    needs: build-and-test
     uses: ./.github/workflows/trivy-scan.yml
 
+  # ── 4. SonarCloud Quality ────────────────────────────────────────────────────
   sonarcloud:
     name: "SonarCloud Quality"
+    needs: build-and-test
     uses: ./.github/workflows/sonarqube-scan.yml
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
+  # ── 5. Summary ───────────────────────────────────────────────────────────────
   scan-summary:
-    name: "Scan Summary"
-    needs: [codeql, trivy, sonarcloud]
+    name: "Pipeline Summary"
+    needs: [build-and-test, codeql, trivy, sonarcloud]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Report Results
         run: |
-          echo "## Security & Quality Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "## CI Pipeline Results - BE-CommonServices" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| CodeQL SAST        | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy Scan         | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SonarCloud Quality | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Stage | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Test           | ${{ needs.build-and-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL SAST    | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Scan     | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarCloud     | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Fail if Any Scan Failed
-        if: needs.codeql.result == 'failure' || needs.sonarcloud.result == 'failure'
+      - name: Fail if Critical Stage Failed
+        if: |
+          needs.build-and-test.result == 'failure' ||
+          needs.codeql.result == 'failure' ||
+          needs.sonarcloud.result == 'failure'
         run: |
-          echo "One or more security/quality scans failed. Blocking merge."
+          echo "One or more critical pipeline stages failed. Blocking merge."
           exit 1

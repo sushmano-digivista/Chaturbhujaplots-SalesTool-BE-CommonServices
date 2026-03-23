@@ -1,9 +1,13 @@
 /**
  * email.service.js
  * Sends brochure download link via SMTP (Nodemailer).
- * Supports Gmail / Outlook / any SMTP provider via .env config.
+ *
+ * Security fix (CWE-80 / Sonar S5131):
+ *   All user-supplied values are HTML-escaped via escapeHtml() before
+ *   being interpolated into the email HTML body to prevent stored XSS.
  */
 const nodemailer = require('nodemailer')
+const { escapeHtml, sanitizeText } = require('../utils/sanitize')
 
 const BROCHURE_URLS = {
   anjana:  'https://chaturbhuja.in/brochures/Anjana_Paradise_Brochure.pdf',
@@ -12,6 +16,9 @@ const BROCHURE_URLS = {
   trimbak: 'https://chaturbhuja.in/brochures/Trimbak_Oaks_Brochure.pdf',
   general: 'https://chaturbhuja.in/brochures/Chaturbhuja_Overview_Brochure.pdf',
 }
+
+// Allowed project IDs — prevent open-redirect via brochureUrl (Checkmarx CWE-601)
+const ALLOWED_PROJECT_IDS = new Set(Object.keys(BROCHURE_URLS))
 
 function createTransport() {
   return nodemailer.createTransport({
@@ -27,29 +34,34 @@ function createTransport() {
 
 /**
  * sendBrochureEmail({ to, name, projectId, projectName })
- * Returns { success: true, messageId } or throws
+ * Returns { success: true, messageId } or throws.
  */
 async function sendBrochureEmail({ to, name, projectId, projectName }) {
-  const brochureUrl = BROCHURE_URLS[projectId] || BROCHURE_URLS.general
-  const project     = projectName || 'our open-plot ventures'
-  const transporter = createTransport()
+  // Only use known project IDs — fall back to 'general' for anything else
+  const safeProjectId = ALLOWED_PROJECT_IDS.has(projectId) ? projectId : 'general'
+  const brochureUrl   = BROCHURE_URLS[safeProjectId]
 
+  // Escape all user-supplied values before HTML interpolation (CWE-80)
+  const safeName    = escapeHtml(sanitizeText(name)) || 'Valued Customer'
+  const safeProject = escapeHtml(sanitizeText(projectName)) || 'our open-plot ventures'
+
+  const transporter = createTransport()
   const info = await transporter.sendMail({
     from:    `"Chaturbhuja Properties & Infra" <${process.env.SMTP_USER}>`,
     to,
-    subject: `Your Brochure — ${project} | Chaturbhuja Properties`,
+    subject: `Your Brochure — ${safeProject} | Chaturbhuja Properties`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: #1E4D2B; padding: 28px 32px;">
-          <h2 style="color: #C9A84C; margin: 0; font-size: 22px;">Chaturbhuja Properties & Infra</h2>
+          <h2 style="color: #C9A84C; margin: 0; font-size: 22px;">Chaturbhuja Properties &amp; Infra</h2>
           <p style="color: rgba(255,255,255,0.7); margin: 6px 0 0; font-size: 13px;">
             Premium Open Plots · Andhra Pradesh
           </p>
         </div>
         <div style="padding: 32px; background: #fafaf7; border: 1px solid #e8e5dc;">
-          <p style="font-size: 16px; color: #1a1a1a;">Dear ${name || 'Valued Customer'},</p>
+          <p style="font-size: 16px; color: #1a1a1a;">Dear ${safeName},</p>
           <p style="color: #444; line-height: 1.7;">
-            Thank you for your interest in <strong>${project}</strong>. 
+            Thank you for your interest in <strong>${safeProject}</strong>.
             Please find your brochure at the link below:
           </p>
           <div style="text-align: center; margin: 28px 0;">
@@ -66,7 +78,7 @@ async function sendBrochureEmail({ to, name, projectId, projectName }) {
         </div>
         <div style="padding: 20px 32px; background: #f0ede4; text-align: center;
                     font-size: 12px; color: #888; border-top: 1px solid #ddd;">
-          Chaturbhuja Properties & Infra · Vijayawada, Andhra Pradesh · 
+          Chaturbhuja Properties &amp; Infra · Vijayawada, Andhra Pradesh ·
           <a href="https://chaturbhuja.in" style="color: #1E4D2B;">www.chaturbhuja.in</a>
         </div>
       </div>
