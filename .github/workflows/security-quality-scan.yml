@@ -47,12 +47,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
           echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| CodeQL SAST       | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Trivy Scan        | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| CodeQL SAST        | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Trivy Scan         | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| SonarCloud Quality | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
 
-      - name: Fail if CodeQL Failed
-        if: needs.codeql.result == 'failure'
+      - name: Fail if Any Scan Failed
+        if: needs.codeql.result == 'failure' || needs.sonarcloud.result == 'failure'
         run: |
-          echo "CodeQL SAST scan failed. Blocking merge."
+          echo "One or more security/quality scans failed. Blocking merge."
           exit 1

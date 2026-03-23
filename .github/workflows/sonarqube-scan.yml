@@ -42,27 +42,13 @@ jobs:
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v3
-        continue-on-error: true        # Non-blocking until Automatic Analysis is disabled in SonarCloud UI
-        id: sonar_scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
       - name: SonarCloud Quality Gate Check
         uses: SonarSource/sonarqube-quality-gate-action@master
-        continue-on-error: true        # Non-blocking until Automatic Analysis is disabled in SonarCloud UI
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-
-      - name: SonarCloud Status Notice
-        if: steps.sonar_scan.outcome == 'failure'
-        run: |
-          echo "## ⚠️ SonarCloud - Action Required" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "SonarCloud Automatic Analysis is still enabled." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To fix: Go to each SonarCloud project → **Administration → Analysis Method** → turn OFF Automatic Analysis." >> $GITHUB_STEP_SUMMARY
-          echo "Once disabled, this step will pass automatically on the next run." >> $GITHUB_STEP_SUMMARY
-          echo "SonarCloud Automatic Analysis still enabled - please disable via SonarCloud UI"
