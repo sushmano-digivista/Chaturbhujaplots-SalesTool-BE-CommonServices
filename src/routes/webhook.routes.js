@@ -152,3 +152,15 @@ function buildTwilioPayload(text) {
 }
 
 module.exports = router
+
+// ── GET /api/v1/webhook/debug — check env vars are loaded (remove in prod) ───
+router.get('/debug', (req, res) => {
+  res.json({
+    hasTwilioSid:    !!process.env.TWILIO_ACCOUNT_SID,
+    hasTwilioToken:  !!process.env.TWILIO_AUTH_TOKEN,
+    hasWaToken:      !!process.env.WA_TOKEN,
+    sandboxNumber:   process.env.TWILIO_SANDBOX_NUMBER || '14155238886 (default)',
+    ownerPhone:      process.env.OWNER_PHONE || 'NOT SET',
+    nodeEnv:         process.env.NODE_ENV || 'not set',
+  })
+})
