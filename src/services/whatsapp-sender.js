@@ -53,11 +53,20 @@ function twilioTo(phone) {
 
 async function twilioSendText(phone, text) {
   const client = getTwilioClient()
-  return client.messages.create({
-    from: twilioFrom(),
+
+  const messageParams = {
     to:   twilioTo(phone),
     body: text,
-  })
+  }
+
+  // Use MessagingServiceSid if provided, otherwise use sandbox From number
+  if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+    messageParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+  } else {
+    messageParams.from = twilioFrom()
+  }
+
+  return client.messages.create(messageParams)
 }
 
 // ── Meta Cloud API sender ─────────────────────────────────────────────────────

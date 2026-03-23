@@ -172,12 +172,20 @@ router.get('/test-send', async (req, res) => {
     const twilio = require('twilio')
     const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
     const to     = req.query.to || process.env.OWNER_PHONE
-    const result = await client.messages.create({
-      from: `whatsapp:+${process.env.TWILIO_SANDBOX_NUMBER || '14155238886'}`,
+
+    const messageParams = {
       to:   `whatsapp:+${to}`,
       body: '✅ Test message from Chaturbhuja bot - setup working!',
-    })
-    res.json({ success: true, sid: result.sid, to, status: result.status })
+    }
+
+    if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+      messageParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
+    } else {
+      messageParams.from = `whatsapp:+${process.env.TWILIO_SANDBOX_NUMBER || '14155238886'}`
+    }
+
+    const result = await client.messages.create(messageParams)
+    res.json({ success: true, sid: result.sid, to, status: result.status, params: messageParams })
   } catch (err) {
     res.json({
       success:  false,
