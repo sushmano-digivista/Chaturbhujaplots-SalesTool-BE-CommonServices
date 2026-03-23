@@ -45,3 +45,9 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: SonarCloud Summary
+        if: always()
+        run: |
+          echo "## SonarCloud Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "Results available at: https://sonarcloud.io/project/overview?id=sushmano-digivista_${GITHUB_REPOSITORY#*/}" >> $GITHUB_STEP_SUMMARY
