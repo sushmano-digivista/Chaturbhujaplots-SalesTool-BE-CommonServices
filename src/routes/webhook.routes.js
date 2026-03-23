@@ -61,32 +61,32 @@ router.post('/', async (req, res) => {
 })
 
 // ── POST /api/v1/webhook/twilio — Twilio incoming messages ───────────────────
-// Twilio sends application/x-www-form-urlencoded, so we need express.urlencoded
 router.post('/twilio', express.urlencoded({ extended: false }), async (req, res) => {
-  // Twilio expects an empty TwiML response (or valid XML)
-  res.set('Content-Type', 'text/xml')
-  res.send('<Response></Response>')
-
   try {
     const from = req.body.From  // e.g. "whatsapp:+919876543210"
     const body = req.body.Body  // plain text of the message
 
-    if (!from || !body) return
+    if (!from || !body) {
+      res.set('Content-Type', 'text/xml')
+      return res.send('<Response></Response>')
+    }
 
     // Strip "whatsapp:+" prefix to get raw digits
     const phone = from.replace(/^whatsapp:\+?/, '')
     console.log(`[webhook/twilio] message from ${phone}: "${body}"`)
 
-    // Build a normalised message payload that questionnaire.service understands
-    // Twilio only delivers plain text — numbered responses map to list/button ids
+    // Build normalised payload — process BEFORE responding
+    // (Vercel serverless kills the function immediately after res.send())
     const messagePayload = buildTwilioPayload(body.trim())
+    await handleIncomingMessage(phone, messagePayload)
 
-    handleIncomingMessage(phone, messagePayload).catch(err =>
-      console.error('[webhook/twilio] Error:', err.message)
-    )
   } catch (err) {
-    console.error('[webhook/twilio] Unexpected error:', err.message)
+    console.error('[webhook/twilio] Error:', err.message)
   }
+
+  // Respond AFTER processing — Twilio requires TwiML response
+  res.set('Content-Type', 'text/xml')
+  res.send('<Response></Response>')
 })
 
 /**
