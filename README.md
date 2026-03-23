@@ -1,6 +1,6 @@
 # Common Service — Node.js
 
-Media upload and serving for Anjana Paradise platform.
+Media upload and serving for Customer Lead platform.
 
 ## Tech Stack
 - Node.js 18+ · Express · Mongoose · Multer
