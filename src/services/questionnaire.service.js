@@ -3,6 +3,7 @@
  * questionnaire.service.js
  *
  * State-machine engine for the WhatsApp auto-questionnaire.
+ * Works with BOTH Meta Cloud API and Twilio sandbox providers.
  *
  * ┌──────────────────────────────────────────────────────────┐
  * │  FLOW                                                    │
@@ -10,17 +11,15 @@
  * │  [New user / "hi"] → WELCOME                             │
  * │       ↓  (sends project list)                           │
  * │  AWAIT_PROJECT  ← user picks project or "Any"            │
- * │       ↓  (sends visit time buttons)                     │
+ * │       ↓  (sends visit time options)                     │
  * │  AWAIT_VISIT   ← user picks time slot or "Skip"          │
- * │       ↓  (sends callback time buttons)                  │
+ * │       ↓  (sends callback time options)                  │
  * │  AWAIT_CALLBACK← user picks callback slot or "Skip"      │
  * │       ↓  (sends brochure PDF(s) + thank-you)            │
  * │  BROCHURE_SENT  → DONE                                   │
  * └──────────────────────────────────────────────────────────┘
- *
- * Entry point:  handleIncomingMessage(phone, messagePayload)
  */
-const WhatsappSession  = require('../models/whatsapp-session.model')
+const WhatsappSession = require('../models/whatsapp-session.model')
 const {
   sendText,
   sendInteractiveList,
@@ -32,14 +31,14 @@ const { sanitizeText } = require('../utils/sanitize')
 
 // ── Project catalogue ─────────────────────────────────────────────────────────
 const PROJECTS = [
-  { id: 'anjana',  title: 'Anjana Paradise',  description: 'Paritala · Near Amaravati · 242 plots' },
-  { id: 'aparna',  title: 'Aparna Legacy',    description: 'Chevitikallu · 273 plots'              },
-  { id: 'varaha',  title: 'Varaha Virtue',    description: 'Pamarru · Near NH-16 · 132 plots'      },
-  { id: 'trimbak', title: 'Trimbak Oaks',     description: 'Penamaluru · Near Vijayawada · Coming soon' },
-  { id: 'any',     title: 'Any / All Projects', description: 'Send me all brochures'              },
+  { id: 'anjana',  title: 'Anjana Paradise',    description: 'Paritala · Near Amaravati · 242 plots'       },
+  { id: 'aparna',  title: 'Aparna Legacy',      description: 'Chevitikallu · 273 plots'                    },
+  { id: 'varaha',  title: 'Varaha Virtue',      description: 'Pamarru · Near NH-16 · 132 plots'            },
+  { id: 'trimbak', title: 'Trimbak Oaks',       description: 'Penamaluru · Near Vijayawada · Coming soon'  },
+  { id: 'any',     title: 'Any / All Projects', description: 'Send me all brochures'                       },
 ]
 
-// ── Brochure PDFs (hosted on chaturbhuja.in) ──────────────────────────────────
+// ── Brochure PDFs ─────────────────────────────────────────────────────────────
 const BROCHURES = {
   anjana:  { url: 'https://chaturbhuja.in/brochures/Anjana_Paradise_Brochure.pdf',  filename: 'Anjana_Paradise_Brochure.pdf',  caption: '📄 Anjana Paradise — Paritala, Near Amaravati' },
   aparna:  { url: 'https://chaturbhuja.in/brochures/Aparna_Legacy_Brochure.pdf',   filename: 'Aparna_Legacy_Brochure.pdf',    caption: '📄 Aparna Legacy — Chevitikallu'                },
@@ -50,25 +49,40 @@ const BROCHURES = {
 const VISIT_TIMES = [
   { id: 'visit_morning',   title: 'Morning (9am–12pm)'   },
   { id: 'visit_afternoon', title: 'Afternoon (12pm–4pm)' },
-  { id: 'visit_evening',   title: 'Evening (4pm–7pm)'    },
 ]
-
 const CALLBACK_TIMES = [
   { id: 'cb_morning',   title: 'Morning (9am–12pm)'   },
   { id: 'cb_afternoon', title: 'Afternoon (12pm–4pm)' },
-  { id: 'cb_evening',   title: 'Evening (4pm–7pm)'    },
 ]
 
 const OWNER_PHONE = process.env.OWNER_PHONE || '918977262683'
 
-// ── Helper: extract text from webhook payload ─────────────────────────────────
+// ── Extract message from Meta OR Twilio payload ───────────────────────────────
 function extractMessage(payload) {
   const type = payload?.type
-  if (type === 'text')        return { kind: 'text',    text: payload.text?.body?.trim() || '' }
-  if (type === 'interactive') {
-    const reply   = payload.interactive?.button_reply || payload.interactive?.list_reply
-    return { kind: 'reply', id: reply?.id || '', text: reply?.title || '' }
+
+  if (type === 'text') {
+    return { kind: 'text', text: payload.text?.body?.trim() || '' }
   }
+
+  if (type === 'interactive') {
+    // Meta: button_reply or list_reply
+    const reply = payload.interactive?.button_reply || payload.interactive?.list_reply
+    if (reply) return { kind: 'reply', id: reply.id || '', text: reply.title || '' }
+  }
+
+  // Twilio numbered reply: webhook pre-built _visit / _callback alternatives
+  if (payload._visit || payload._callback) {
+    const main = payload.interactive?.list_reply
+    return {
+      kind: 'reply',
+      id:   main?.id   || '',
+      text: main?.title || '',
+      _visit:    payload._visit,
+      _callback: payload._callback,
+    }
+  }
+
   return { kind: 'other', text: '' }
 }
 
@@ -83,7 +97,7 @@ async function sendWelcome(phone) {
 async function sendProjectQuestion(phone) {
   await sendInteractiveList(phone, {
     header:      '🏡 Step 1 of 4 — Project Interest',
-    body:        'Which project are you interested in? Select one from the list below or choose *Any* to get all brochures.',
+    body:        'Which project are you interested in?\nSelect one from the list below or choose *Any* to get all brochures.',
     footer:      'Chaturbhuja Properties & Infra',
     buttonLabel: 'View Projects',
     sections: [{
@@ -95,15 +109,13 @@ async function sendProjectQuestion(phone) {
 
 async function sendVisitTimeQuestion(phone) {
   await sendInteractiveButtons(phone, {
-    body:    '📅 *Step 2 of 4 — Site Visit*\n\nWould you like to schedule a free site visit? If yes, choose your preferred time:',
+    body:    '📅 *Step 2 of 4 — Site Visit*\n\nWould you like to schedule a free site visit?\nChoose your preferred time:',
     footer:  'Our team will confirm 1 day before',
     buttons: [
-      ...VISIT_TIMES.slice(0, 2),
+      ...VISIT_TIMES,
       { id: 'visit_skip', title: 'Skip for now' },
     ],
   })
-  // Send second batch for afternoon/evening since WhatsApp limits to 3 buttons
-  // We already include Morning + Afternoon + Skip → user can reply Afternoon later
 }
 
 async function sendCallbackQuestion(phone) {
@@ -111,7 +123,7 @@ async function sendCallbackQuestion(phone) {
     body:    '📞 *Step 3 of 4 — Callback Request*\n\nWhen is the best time for our property advisor to call you?',
     footer:  'We typically call within 30 minutes',
     buttons: [
-      ...CALLBACK_TIMES.slice(0, 2),
+      ...CALLBACK_TIMES,
       { id: 'cb_skip', title: 'Skip for now' },
     ],
   })
@@ -123,14 +135,16 @@ async function sendBrochures(phone, session) {
   const toSend    = sendAll ? Object.keys(BROCHURES) : [projectId]
 
   await sendText(phone,
-    `✅ *Thank you${session.name ? `, ${session.name}` : ''}!*\n\nHere are your brochure(s) for *${sendAll ? 'all projects' : session.projectName}* 📄\nOur team will contact you shortly.\n\nFor immediate help:\n📞 +91 89772 62683\n🌐 www.chaturbhuja.in`
+    `✅ *Thank you${session.name ? `, ${session.name}` : ''}!*\n\n` +
+    `Here ${sendAll ? 'are all our brochures' : `is your brochure for *${session.projectName}*`} 📄\n\n` +
+    `Our team will contact you shortly.\n\n` +
+    `For immediate help:\n📞 +91 89772 62683\n🌐 www.chaturbhuja.in`
   )
 
   for (const id of toSend) {
     const brochure = BROCHURES[id]
     if (brochure) {
-      // Small delay between documents to avoid rate limiting
-      await new Promise(r => setTimeout(r, 500))
+      await new Promise(r => setTimeout(r, 500))  // avoid rate limiting
       await sendDocument(phone, brochure)
     }
   }
@@ -141,24 +155,32 @@ async function notifyOwner(session) {
     ? 'All Projects'
     : session.projectName || session.projectId || 'Not specified'
 
-  const summary = `🤖 *WhatsApp Bot Lead*\n\n` +
+  const summary =
+    `🤖 *WhatsApp Bot Lead*\n\n` +
     `👤 *Phone:* +${session.phone}\n` +
-    `🏡 *Project Interest:* ${projectLabel}\n` +
+    `🏡 *Project:* ${projectLabel}\n` +
     `📅 *Visit Time:* ${session.visitTime    || 'Not specified'}\n` +
-    `📞 *Callback Time:* ${session.callbackTime || 'Not specified'}\n\n` +
+    `📞 *Callback:*   ${session.callbackTime || 'Not specified'}\n\n` +
     `_Captured via WhatsApp questionnaire bot_`
 
   await sendText(OWNER_PHONE, summary)
 }
 
-// ── Main entry point ──────────────────────────────────────────────────────────
+// ── Resolve step-aware reply for Twilio numbered inputs ───────────────────────
+function resolveReply(msg, step) {
+  if (msg.kind === 'reply') {
+    // For Twilio payloads with _visit / _callback alternatives, return the right one
+    if (step === 'AWAIT_VISIT'    && msg._visit    && !msg.id.startsWith('visit_')) {
+      return { kind: 'reply', id: msg._visit.id,    text: msg._visit.title    }
+    }
+    if (step === 'AWAIT_CALLBACK' && msg._callback && !msg.id.startsWith('cb_')) {
+      return { kind: 'reply', id: msg._callback.id, text: msg._callback.title }
+    }
+  }
+  return msg
+}
 
-/**
- * handleIncomingMessage(phone, messagePayload)
- *
- * Called from the webhook route with the raw message payload from Meta.
- * Reads/writes session in MongoDB and advances the conversation.
- */
+// ── Main entry point ──────────────────────────────────────────────────────────
 async function handleIncomingMessage(rawPhone, messagePayload) {
   const phone = normalisePhone(rawPhone)
   const msg   = extractMessage(messagePayload)
@@ -169,33 +191,27 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     session = await WhatsappSession.create({ phone, step: 'WELCOME' })
   }
 
-  // Update activity timestamp and message count
   session.messageCount += 1
   session.lastActivity  = new Date()
 
-  // ── STEP: WELCOME / restart trigger ─────────────────────────────────────
+  // ── Reset / start trigger ────────────────────────────────────────────────
   const resetKeywords = ['hi', 'hello', 'hey', 'start', 'restart', 'hii', 'helo', 'namaste']
   const isReset = msg.kind === 'text' && resetKeywords.includes(msg.text.toLowerCase())
 
   if (session.step === 'WELCOME' || isReset) {
-    if (isReset && session.completed) {
-      // Allow restart of completed sessions
-      session.step         = 'AWAIT_PROJECT'
-      session.projectId    = ''
-      session.projectName  = ''
-      session.visitTime    = ''
-      session.callbackTime = ''
-      session.completed    = false
-    }
+    session.step         = 'AWAIT_PROJECT'
+    session.projectId    = ''
+    session.projectName  = ''
+    session.visitTime    = ''
+    session.callbackTime = ''
+    session.completed    = false
     await session.save()
     await sendWelcome(phone)
     await sendProjectQuestion(phone)
-    session.step = 'AWAIT_PROJECT'
-    await session.save()
     return
   }
 
-  // ── STEP: AWAIT_PROJECT ──────────────────────────────────────────────────
+  // ── AWAIT_PROJECT ────────────────────────────────────────────────────────
   if (session.step === 'AWAIT_PROJECT') {
     let projectId   = ''
     let projectName = ''
@@ -203,8 +219,7 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     if (msg.kind === 'reply' && msg.id.startsWith('proj_')) {
       projectId = msg.id.replace('proj_', '')
     } else if (msg.kind === 'text') {
-      // Allow plain-text fallback: try to match project name
-      const lc = msg.text.toLowerCase()
+      const lc    = msg.text.toLowerCase()
       const match = PROJECTS.find(p =>
         p.title.toLowerCase().includes(lc) || p.id === lc
       )
@@ -212,7 +227,7 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     }
 
     if (!projectId) {
-      await sendText(phone, '⚠️ Please select a project from the list above, or tap *View Projects* to see the options again.')
+      await sendText(phone, '⚠️ Please select a project from the list above.')
       await sendProjectQuestion(phone)
       await session.save()
       return
@@ -225,31 +240,28 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     session.projectName = sanitizeText(projectName)
     session.step        = 'AWAIT_VISIT'
     await session.save()
-
     await sendVisitTimeQuestion(phone)
     return
   }
 
-  // ── STEP: AWAIT_VISIT ────────────────────────────────────────────────────
+  // ── AWAIT_VISIT ──────────────────────────────────────────────────────────
   if (session.step === 'AWAIT_VISIT') {
+    const r = resolveReply(msg, 'AWAIT_VISIT')
     let visitTime = ''
 
-    if (msg.kind === 'reply') {
-      if (msg.id === 'visit_skip') {
-        visitTime = 'Skipped'
-      } else if (msg.id.startsWith('visit_')) {
-        visitTime = msg.text
-      }
-    } else if (msg.kind === 'text') {
-      const lc = msg.text.toLowerCase()
-      if (['skip', 'no', 'not now', 'later'].includes(lc))  visitTime = 'Skipped'
+    if (r.kind === 'reply') {
+      if (r.id === 'visit_skip')                  visitTime = 'Skipped'
+      else if (r.id.startsWith('visit_'))         visitTime = r.text
+    } else if (r.kind === 'text') {
+      const lc = r.text.toLowerCase()
+      if (['skip','no','not now','later'].includes(lc)) visitTime = 'Skipped'
       else if (lc.includes('morning'))   visitTime = 'Morning (9am–12pm)'
       else if (lc.includes('afternoon')) visitTime = 'Afternoon (12pm–4pm)'
       else if (lc.includes('evening'))   visitTime = 'Evening (4pm–7pm)'
     }
 
     if (!visitTime) {
-      await sendText(phone, '⚠️ Please tap one of the buttons above to choose your preferred visit time, or tap *Skip for now*.')
+      await sendText(phone, '⚠️ Please choose a visit time from the options above.')
       await sendVisitTimeQuestion(phone)
       await session.save()
       return
@@ -258,31 +270,28 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     session.visitTime = sanitizeText(visitTime)
     session.step      = 'AWAIT_CALLBACK'
     await session.save()
-
     await sendCallbackQuestion(phone)
     return
   }
 
-  // ── STEP: AWAIT_CALLBACK ─────────────────────────────────────────────────
+  // ── AWAIT_CALLBACK ───────────────────────────────────────────────────────
   if (session.step === 'AWAIT_CALLBACK') {
+    const r = resolveReply(msg, 'AWAIT_CALLBACK')
     let callbackTime = ''
 
-    if (msg.kind === 'reply') {
-      if (msg.id === 'cb_skip') {
-        callbackTime = 'Skipped'
-      } else if (msg.id.startsWith('cb_')) {
-        callbackTime = msg.text
-      }
-    } else if (msg.kind === 'text') {
-      const lc = msg.text.toLowerCase()
-      if (['skip', 'no', 'not now', 'later'].includes(lc)) callbackTime = 'Skipped'
+    if (r.kind === 'reply') {
+      if (r.id === 'cb_skip')              callbackTime = 'Skipped'
+      else if (r.id.startsWith('cb_'))     callbackTime = r.text
+    } else if (r.kind === 'text') {
+      const lc = r.text.toLowerCase()
+      if (['skip','no','not now','later'].includes(lc)) callbackTime = 'Skipped'
       else if (lc.includes('morning'))   callbackTime = 'Morning (9am–12pm)'
       else if (lc.includes('afternoon')) callbackTime = 'Afternoon (12pm–4pm)'
       else if (lc.includes('evening'))   callbackTime = 'Evening (4pm–7pm)'
     }
 
     if (!callbackTime) {
-      await sendText(phone, '⚠️ Please tap one of the buttons above to choose a callback time, or tap *Skip for now*.')
+      await sendText(phone, '⚠️ Please choose a callback time from the options above.')
       await sendCallbackQuestion(phone)
       await session.save()
       return
@@ -293,7 +302,6 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     session.completed    = true
     await session.save()
 
-    // Send brochure(s) + notify owner
     await sendBrochures(phone, session)
     try { await notifyOwner(session) } catch (e) {
       console.warn('[questionnaire] Owner notification failed:', e.message)
@@ -304,13 +312,10 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     return
   }
 
-  // ── STEP: DONE — already completed ──────────────────────────────────────
-  if (session.step === 'DONE' || session.completed) {
-    await sendText(phone,
-      `👋 Your details are already captured! Our team will reach out shortly.\n\nType *hi* to start a new enquiry or call us at 📞 +91 89772 62683.`
-    )
-    return
-  }
+  // ── DONE ─────────────────────────────────────────────────────────────────
+  await sendText(phone,
+    `👋 Your details are already captured! Our team will reach out shortly.\n\nType *hi* to start a new enquiry or call 📞 +91 89772 62683.`
+  )
 }
 
 module.exports = { handleIncomingMessage }
