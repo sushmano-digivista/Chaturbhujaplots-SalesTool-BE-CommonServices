@@ -10,6 +10,26 @@ const webhookRoutes   = require('./routes/webhook.routes')
 const app  = express()
 const PORT = process.env.PORT || 8081
 
+// ── MongoDB connection (Vercel-safe) ──────────────────────────────────────────
+// On Vercel serverless, mongoose.connect() in start() runs async and may not
+// finish before the first request arrives. We cache the connection promise so
+// every request waits for it before proceeding.
+let mongoConnectPromise = null
+
+function ensureMongoConnected() {
+  if (mongoose.connection.readyState === 1) return Promise.resolve()  // already connected
+  if (!mongoConnectPromise) {
+    mongoConnectPromise = mongoose.connect(process.env.MONGODB_URI)
+      .then(() => { console.log('✓ MongoDB connected') })
+      .catch(err => {
+        console.error('✗ MongoDB connection failed:', err.message)
+        mongoConnectPromise = null  // allow retry on next request
+        throw err
+      })
+  }
+  return mongoConnectPromise
+}
+
 // ── CORS ──────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map(o => o.trim())
 app.use(cors({
@@ -20,6 +40,17 @@ app.use(cors({
   credentials: false,
 }))
 app.use(express.json())
+
+// ── Ensure MongoDB is connected before any route handler runs ─────────────────
+app.use(async (req, res, next) => {
+  try {
+    await ensureMongoConnected()
+    next()
+  } catch (err) {
+    console.error('[db] Failed to connect to MongoDB:', err.message)
+    res.status(503).json({ message: 'Database unavailable. Please try again.' })
+  }
+})
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/actuator/health', (_, res) => res.json({ status: 'UP' }))
@@ -38,16 +69,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: err.message || 'Internal server error' })
 })
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-async function start() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI)
-    console.log('✓ MongoDB connected')
-    app.listen(PORT, () => console.log(`✓ common-service running on port ${PORT}`))
-  } catch (err) {
-    console.error('✗ Failed to start:', err)
-    process.exit(1)
-  }
+// ── Start (local dev only — Vercel uses the exported app directly) ────────────
+if (process.env.NODE_ENV !== 'production') {
+  ensureMongoConnected()
+    .then(() => app.listen(PORT, () => console.log(`✓ common-service running on port ${PORT}`)))
+    .catch(err => { console.error('✗ Failed to start:', err); process.exit(1) })
 }
 
-start()
+module.exports = app
