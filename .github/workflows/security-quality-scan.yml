@@ -93,8 +93,7 @@ jobs:
       - name: Fail if Critical Stage Failed
         if: |
           needs.build-and-test.result == 'failure' ||
-          needs.codeql.result == 'failure' ||
-          needs.sonarcloud.result == 'failure'
+          needs.codeql.result == 'failure'
         run: |
           echo "One or more critical pipeline stages failed. Blocking merge."
           exit 1

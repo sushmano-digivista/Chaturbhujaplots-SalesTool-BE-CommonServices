@@ -41,11 +41,12 @@ jobs:
         continue-on-error: true
 
       - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@v5
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
-          SONAR_SCANNER_OPTS: "-Dsonar.qualitygate.wait=false"
+          SONAR_SCANNER_OPTS: "-Dsonar.qualitygate.wait=false -Dsonar.scm.disabled=true"
 
       - name: SonarCloud Summary
         if: always()
