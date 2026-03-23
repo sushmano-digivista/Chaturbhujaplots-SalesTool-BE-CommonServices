@@ -55,7 +55,7 @@ const CALLBACK_TIMES = [
   { id: 'cb_afternoon', title: 'Afternoon (12pm–4pm)' },
 ]
 
-const OWNER_PHONE = process.env.OWNER_PHONE || '918977262683'
+const OWNER_PHONE = process.env.OWNER_PHONE || '919739762698'
 
 // Log at startup so Vercel Function Logs confirm the correct number is loaded
 console.log(`[questionnaire] OWNER_PHONE = ${OWNER_PHONE}`)
