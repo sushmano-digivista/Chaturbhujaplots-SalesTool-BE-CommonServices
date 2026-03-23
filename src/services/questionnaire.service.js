@@ -57,6 +57,9 @@ const CALLBACK_TIMES = [
 
 const OWNER_PHONE = process.env.OWNER_PHONE || '918977262683'
 
+// Log at startup so Vercel Function Logs confirm the correct number is loaded
+console.log(`[questionnaire] OWNER_PHONE = ${OWNER_PHONE}`)
+
 // ── Extract message from Meta OR Twilio payload ───────────────────────────────
 function extractMessage(payload) {
   const type = payload?.type
