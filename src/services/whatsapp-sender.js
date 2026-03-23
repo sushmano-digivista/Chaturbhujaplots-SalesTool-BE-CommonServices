@@ -54,17 +54,24 @@ function twilioTo(phone) {
 async function twilioSendText(phone, text) {
   const client = getTwilioClient()
 
+  // For sandbox, Twilio requires sending via the shared sandbox number.
+  // The account SID must match the one that activated the sandbox.
   const messageParams = {
+    from: twilioFrom(),
     to:   twilioTo(phone),
     body: text,
   }
 
-  // Use MessagingServiceSid if provided, otherwise use sandbox From number
+  // If a Messaging Service SID is configured, use that instead
   if (process.env.TWILIO_MESSAGING_SERVICE_SID) {
+    delete messageParams.from
     messageParams.messagingServiceSid = process.env.TWILIO_MESSAGING_SERVICE_SID
-  } else {
-    messageParams.from = twilioFrom()
   }
+
+  console.log('[twilio] Sending message:', {
+    from: messageParams.from || `service:${messageParams.messagingServiceSid}`,
+    to:   messageParams.to,
+  })
 
   return client.messages.create(messageParams)
 }
