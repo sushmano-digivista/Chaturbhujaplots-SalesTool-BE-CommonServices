@@ -9,55 +9,38 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      security-events: write   # Upload SARIF to GitHub Security tab
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # ── Filesystem scan: source code + dependencies ──
       - name: Trivy Filesystem Scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: "fs"
           scan-ref: "."
-          format: "sarif"
-          output: "trivy-fs-results.sarif"
+          format: "table"
           severity: "CRITICAL,HIGH"
-          exit-code: "0"           # Don't fail pipeline — report only
-          ignore-unfixed: true     # Skip CVEs with no available fix
+          exit-code: "0"
+          ignore-unfixed: true
 
-      - name: Upload Trivy FS Results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: "trivy-fs-results.sarif"
-          category: "trivy-filesystem"
-
-      # ── Dockerfile scan (only runs if Dockerfile exists) ──
       - name: Check for Dockerfile
         id: check_dockerfile
         run: |
-          if [ -f "Dockerfile" ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+          [ -f "Dockerfile" ] && echo "exists=true" >> $GITHUB_OUTPUT || echo "exists=false" >> $GITHUB_OUTPUT
 
-      - name: Trivy Dockerfile Scan
+      - name: Trivy Dockerfile Config Scan
         if: steps.check_dockerfile.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: "config"
           scan-ref: "Dockerfile"
-          format: "sarif"
-          output: "trivy-docker-results.sarif"
+          format: "table"
           severity: "CRITICAL,HIGH"
           exit-code: "0"
 
-      - name: Upload Trivy Dockerfile Results to GitHub Security
-        if: steps.check_dockerfile.outputs.exists == 'true'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: "trivy-docker-results.sarif"
-          category: "trivy-dockerfile"
+      - name: Trivy Step Summary
+        if: always()
+        run: |
+          echo "## Trivy Vulnerability Scan" >> $GITHUB_STEP_SUMMARY
+          echo "Scan completed. Check logs above for CRITICAL/HIGH findings." >> $GITHUB_STEP_SUMMARY

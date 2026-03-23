@@ -13,25 +13,24 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+# Permissions granted to all called reusable workflows
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
 jobs:
-  # ── Job 1: CodeQL SAST (replaces Checkmarx - free) ──
+  # ── Job 1: CodeQL SAST (free GitHub security scanner) ──
   codeql:
     name: "CodeQL SAST"
     uses: ./.github/workflows/codeql-scan.yml
     with:
       language: javascript
-    permissions:
-      actions: read
-      contents: read
-      security-events: write
 
   # ── Job 2: Trivy Dependency & Container Scan ──
   trivy:
     name: "Trivy Vulnerability Scan"
     uses: ./.github/workflows/trivy-scan.yml
-    permissions:
-      contents: read
-      security-events: write
 
   # ── Job 3: SonarCloud Quality Gate ──
   sonarcloud:
@@ -40,7 +39,7 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-  # ── Job 4: Summary — blocks merge if any scan fails ──
+  # ── Job 4: Summary — blocks merge if critical scans fail ──
   scan-summary:
     name: "Scan Summary"
     needs: [codeql, trivy, sonarcloud]
@@ -51,11 +50,11 @@ jobs:
         run: |
           echo "## 🔐 Security & Quality Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| 🔍 CodeQL SAST       | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| 📦 Trivy Scan        | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| ✅ SonarCloud Quality | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan                  | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 CodeQL SAST        | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Trivy Scan         | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ SonarCloud Quality  | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if Critical Scans Failed
         if: needs.codeql.result == 'failure' || needs.sonarcloud.result == 'failure'

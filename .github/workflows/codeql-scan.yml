@@ -15,7 +15,7 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write   # Required to upload SARIF results
+      security-events: write  # Needed to upload results to GitHub Security tab
 
     steps:
       - name: Checkout Code
@@ -24,16 +24,18 @@ jobs:
           fetch-depth: 0
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4       # Upgraded from v3
         with:
           languages: ${{ inputs.language }}
-          queries: security-extended   # Broader ruleset beyond default
+          queries: security-extended
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Run CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ inputs.language }}"
-          upload: true   # Upload results to GitHub Security tab
+          # upload:false for private repos (requires paid GitHub Advanced Security)
+          # upload:true for public repos
+          upload: ${{ github.event.repository.visibility == 'public' && 'true' || 'failure-only' }}
