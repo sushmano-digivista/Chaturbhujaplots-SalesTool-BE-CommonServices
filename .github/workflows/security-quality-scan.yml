@@ -1,0 +1,64 @@
+name: "Security & Quality Scan - CommonServices"
+
+on:
+  push:
+    branches:
+      - Development
+  pull_request:
+    branches:
+      - Development
+    types: [opened, synchronize, reopened]
+
+# Prevent duplicate runs on PR + push
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Job 1: Checkmarx SAST Security Scan
+  # ──────────────────────────────────────────────
+  checkmarx:
+    name: "Checkmarx SAST"
+    uses: ./.github/workflows/checkmarx-scan.yml
+    with:
+      project_name: "BE-CommonServices-${{ github.ref_name }}"
+      branch_name: ${{ github.ref_name }}
+    secrets:
+      CX_BASE_URI: ${{ secrets.CX_BASE_URI }}
+      CX_TENANT: ${{ secrets.CX_TENANT }}
+      CX_CLIENT_ID: ${{ secrets.CX_CLIENT_ID }}
+      CX_CLIENT_SECRET: ${{ secrets.CX_CLIENT_SECRET }}
+
+  # ──────────────────────────────────────────────
+  # Job 2: SonarQube Quality Gate
+  # ──────────────────────────────────────────────
+  sonarqube:
+    name: "SonarQube Quality"
+    uses: ./.github/workflows/sonarqube-scan.yml
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # ──────────────────────────────────────────────
+  # Job 3: Summary — fails if any scan fails
+  # ──────────────────────────────────────────────
+  scan-summary:
+    name: "Scan Summary"
+    needs: [checkmarx, sonarqube]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Report Scan Results
+        run: |
+          echo "## Security & Quality Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan         | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Checkmarx    | ${{ needs.checkmarx.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| SonarQube    | ${{ needs.sonarqube.result }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail if Critical Scans Failed
+        if: needs.checkmarx.result == 'failure' || needs.sonarqube.result == 'failure'
+        run: |
+          echo "One or more security/quality scans failed. Blocking merge."
+          exit 1
