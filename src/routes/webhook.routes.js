@@ -104,47 +104,14 @@ router.post('/twilio', express.urlencoded({ extended: false }), async (req, res)
 function buildTwilioPayload(text) {
   const lower = text.toLowerCase().trim()
 
-  // Map numbered replies → button/list reply IDs
-  const PROJECT_MAP = {
-    '1': { id: 'proj_anjana',  title: 'Anjana Paradise'     },
-    '2': { id: 'proj_aparna',  title: 'Aparna Legacy'       },
-    '3': { id: 'proj_varaha',  title: 'Varaha Virtue'       },
-    '4': { id: 'proj_trimbak', title: 'Trimbak Oaks'        },
-    '5': { id: 'proj_any',     title: 'Any / All Projects'  },
-  }
-  const VISIT_MAP = {
-    '1': { id: 'visit_morning',   title: 'Morning (9am–12pm)'   },
-    '2': { id: 'visit_afternoon', title: 'Afternoon (12pm–4pm)' },
-    '3': { id: 'visit_skip',      title: 'Skip for now'         },
-  }
-  const CALLBACK_MAP = {
-    '1': { id: 'cb_morning',   title: 'Morning (9am–12pm)'   },
-    '2': { id: 'cb_afternoon', title: 'Afternoon (12pm–4pm)' },
-    '3': { id: 'cb_skip',      title: 'Skip for now'         },
-  }
-
-  // Check if it's a single digit
+  // For single digit inputs, return as plain text.
+  // The questionnaire service handles numbers directly in each step's text handler:
+  //   AWAIT_PROJECT:  1=anjana 2=aparna 3=varaha 4=trimbak 5=any
+  //   AWAIT_VISIT:    1=Morning 2=Afternoon 3=Skip
+  //   AWAIT_CALLBACK: 1=Morning 2=Afternoon 3=Skip
+  // Passing as plain text lets the correct step handler resolve the meaning.
   if (/^[1-5]$/.test(lower)) {
-    // Could be project, visit, or callback — questionnaire.service will
-    // only act on the reply if the id matches the expected step pattern.
-    // We return all possibilities; the state machine picks the right one.
-    const n = lower
-    const proj = PROJECT_MAP[n]
-    const visit = VISIT_MAP[n]
-    const cb = CALLBACK_MAP[n]
-
-    // Return as an interactive reply that covers all three maps
-    // The questionnaire checks msg.id.startsWith('proj_') / 'visit_' / 'cb_'
-    // so we send the project reply first — it won't match visit/cb steps
-    if (proj) {
-      return {
-        type: 'interactive',
-        interactive: { list_reply: proj },
-        // Also attach visit/cb replies so service can match whichever step is active
-        _visit:    visit,
-        _callback: cb,
-      }
-    }
+    return { type: 'text', text: { body: lower } }
   }
 
   // Plain text fallback — pass straight through
