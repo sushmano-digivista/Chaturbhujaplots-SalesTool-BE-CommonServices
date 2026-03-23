@@ -1,4 +1,4 @@
-name: "Security & Quality Scan - CommonServices"
+name: "Security & Quality Scan - BE-CommonServices"
 
 on:
   push:
@@ -9,56 +9,56 @@ on:
       - Development
     types: [opened, synchronize, reopened]
 
-# Prevent duplicate runs on PR + push
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ──────────────────────────────────────────────
-  # Job 1: Checkmarx SAST Security Scan
-  # ──────────────────────────────────────────────
-  checkmarx:
-    name: "Checkmarx SAST"
-    uses: ./.github/workflows/checkmarx-scan.yml
+  # ── Job 1: CodeQL SAST (replaces Checkmarx - free) ──
+  codeql:
+    name: "CodeQL SAST"
+    uses: ./.github/workflows/codeql-scan.yml
     with:
-      project_name: "BE-CommonServices-${{ github.ref_name }}"
-      branch_name: ${{ github.ref_name }}
-    secrets:
-      CX_BASE_URI: ${{ secrets.CX_BASE_URI }}
-      CX_TENANT: ${{ secrets.CX_TENANT }}
-      CX_CLIENT_ID: ${{ secrets.CX_CLIENT_ID }}
-      CX_CLIENT_SECRET: ${{ secrets.CX_CLIENT_SECRET }}
+      language: javascript
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
 
-  # ──────────────────────────────────────────────
-  # Job 2: SonarQube Quality Gate
-  # ──────────────────────────────────────────────
-  sonarqube:
-    name: "SonarQube Quality"
+  # ── Job 2: Trivy Dependency & Container Scan ──
+  trivy:
+    name: "Trivy Vulnerability Scan"
+    uses: ./.github/workflows/trivy-scan.yml
+    permissions:
+      contents: read
+      security-events: write
+
+  # ── Job 3: SonarCloud Quality Gate ──
+  sonarcloud:
+    name: "SonarCloud Quality"
     uses: ./.github/workflows/sonarqube-scan.yml
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
-  # ──────────────────────────────────────────────
-  # Job 3: Summary — fails if any scan fails
-  # ──────────────────────────────────────────────
+  # ── Job 4: Summary — blocks merge if any scan fails ──
   scan-summary:
     name: "Scan Summary"
-    needs: [checkmarx, sonarqube]
+    needs: [codeql, trivy, sonarcloud]
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - name: Report Scan Results
+      - name: Report Results
         run: |
-          echo "## Security & Quality Scan Results" >> $GITHUB_STEP_SUMMARY
-          echo "| Scan         | Status |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------------|--------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Checkmarx    | ${{ needs.checkmarx.result }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| SonarQube    | ${{ needs.sonarqube.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "## 🔐 Security & Quality Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Scan | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 CodeQL SAST       | ${{ needs.codeql.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📦 Trivy Scan        | ${{ needs.trivy.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ✅ SonarCloud Quality | ${{ needs.sonarcloud.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if Critical Scans Failed
-        if: needs.checkmarx.result == 'failure' || needs.sonarqube.result == 'failure'
+        if: needs.codeql.result == 'failure' || needs.sonarcloud.result == 'failure'
         run: |
           echo "One or more security/quality scans failed. Blocking merge."
           exit 1

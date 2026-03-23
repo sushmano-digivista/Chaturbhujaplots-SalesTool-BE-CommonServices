@@ -1,22 +1,21 @@
-name: "SonarQube Quality Scan"
+name: "SonarCloud Quality Scan"
 
 on:
   workflow_call:
     secrets:
       SONAR_TOKEN:
         required: true
-      SONAR_HOST_URL:
-        required: true
 
 jobs:
-  sonarqube-scan:
-    name: "SonarQube Analysis"
+  sonarcloud-scan:
+    name: "SonarCloud Analysis"
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Full history for better blame info
+          fetch-depth: 0   # Full history for accurate blame + new-code detection
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,17 +28,17 @@ jobs:
 
       - name: Run Tests with Coverage
         run: npm test -- --coverage --coverageReporters=lcov
-        continue-on-error: true  # Don't block scan if tests fail
+        continue-on-error: true   # Report coverage if available, don't block
 
-      - name: SonarQube Scan
+      - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v3
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
-      - name: SonarQube Quality Gate Check
+      - name: SonarCloud Quality Gate Check
         uses: SonarSource/sonarqube-quality-gate-action@master
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: https://sonarcloud.io

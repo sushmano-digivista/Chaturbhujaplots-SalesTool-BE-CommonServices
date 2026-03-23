@@ -1,44 +1,18 @@
-name: "Checkmarx Security Scan"
-
+# This workflow has been replaced by codeql-scan.yml
+# CodeQL provides equivalent SAST scanning and is completely free via GitHub Actions.
+# This file is kept as a placeholder — safe to delete.
+name: "Checkmarx - Replaced by CodeQL"
 on:
   workflow_call:
     inputs:
       project_name:
-        required: true
+        required: false
         type: string
       branch_name:
-        required: true
+        required: false
         type: string
-    secrets:
-      CX_BASE_URI:
-        required: true
-      CX_TENANT:
-        required: true
-      CX_CLIENT_ID:
-        required: true
-      CX_CLIENT_SECRET:
-        required: true
-
 jobs:
-  checkmarx-sast:
-    name: "Checkmarx SAST Scan"
+  notice:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Run Checkmarx AST Scan
-        uses: checkmarx/ast-github-action@main
-        with:
-          base_uri: ${{ secrets.CX_BASE_URI }}
-          cx_client_id: ${{ secrets.CX_CLIENT_ID }}
-          cx_client_secret: ${{ secrets.CX_CLIENT_SECRET }}
-          cx_tenant: ${{ secrets.CX_TENANT }}
-          project_name: ${{ inputs.project_name }}
-          branch: ${{ inputs.branch_name }}
-          additional_params: >
-            --scan-types sast
-            --sast-preset-name "Checkmarx Default"
-            --threshold "sast-high=0;sast-critical=0"
+      - run: echo "Checkmarx replaced by CodeQL. See codeql-scan.yml"
