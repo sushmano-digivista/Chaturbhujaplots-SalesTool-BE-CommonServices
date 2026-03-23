@@ -76,4 +76,5 @@ if (process.env.NODE_ENV !== 'production') {
     .catch(err => { console.error('✗ Failed to start:', err); process.exit(1) })
 }
 
+// Deploy trigger: Mon Mar 23 22:27:46 UTC 2026
 module.exports = app
