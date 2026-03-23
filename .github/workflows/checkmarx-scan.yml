@@ -1,0 +1,18 @@
+# This workflow has been replaced by codeql-scan.yml
+# CodeQL provides equivalent SAST scanning and is completely free via GitHub Actions.
+# This file is kept as a placeholder — safe to delete.
+name: "Checkmarx - Replaced by CodeQL"
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        required: false
+        type: string
+      branch_name:
+        required: false
+        type: string
+jobs:
+  notice:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Checkmarx replaced by CodeQL. See codeql-scan.yml"

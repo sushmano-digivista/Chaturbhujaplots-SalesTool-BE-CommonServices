@@ -1,0 +1,54 @@
+name: "SonarCloud Quality Scan"
+
+on:
+  workflow_call:
+    secrets:
+      SONAR_TOKEN:
+        required: true
+
+jobs:
+  sonarcloud-scan:
+    name: "SonarCloud Analysis"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Check for Test Script
+        id: check_tests
+        run: |
+          node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)" 2>/dev/null \
+            && echo "has_tests=true" >> $GITHUB_OUTPUT \
+            || echo "has_tests=false" >> $GITHUB_OUTPUT
+
+      - name: Run Tests with Coverage
+        if: steps.check_tests.outputs.has_tests == 'true'
+        run: npm test -- --coverage --coverageReporters=lcov
+        continue-on-error: true
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v6
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_SCANNER_OPTS: "-Dsonar.qualitygate.wait=false"
+
+      - name: SonarCloud Summary
+        if: always()
+        run: |
+          echo "## SonarCloud Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "Results: https://sonarcloud.io/project/overview?id=sushmano-digivista_${GITHUB_REPOSITORY#*/}" >> $GITHUB_STEP_SUMMARY

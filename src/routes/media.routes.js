@@ -83,12 +83,23 @@ router.post('/upload/bulk', upload.array('files', 20), async (req, res) => {
 })
 
 // ── SERVE file ────────────────────────────────────────────────────────────────
+// CWE-22 Path Traversal fix: resolve the full path then verify it stays inside
+// uploadDir before serving. This prevents  ../../etc/passwd -style requests.
 router.get('/files/:filename', (req, res) => {
-  const filePath = path.join(uploadDir, req.params.filename)
+  const safeName = path.basename(req.params.filename)  // strip any directory components
+  const filePath = path.resolve(path.join(uploadDir, safeName))
+  const baseDir  = path.resolve(uploadDir)
+
+  // Ensure resolved path is still inside the upload directory
+  if (!filePath.startsWith(baseDir + path.sep) && filePath !== baseDir) {
+    return res.status(400).json({ message: 'Invalid filename' })
+  }
+
   if (!fs.existsSync(filePath))
     return res.status(404).json({ message: 'File not found' })
+
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-  res.sendFile(path.resolve(filePath))
+  res.sendFile(filePath)
 })
 
 // ── LIST ──────────────────────────────────────────────────────────────────────
