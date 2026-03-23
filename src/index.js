@@ -2,7 +2,9 @@ require('dotenv').config()
 const express   = require('express')
 const cors      = require('cors')
 const mongoose  = require('mongoose')
-const mediaRoutes = require('./routes/media.routes')
+const mediaRoutes     = require('./routes/media.routes')
+const brochureRoutes  = require('./routes/brochure.routes')
+const siteVisitRoutes = require('./routes/siteVisit.routes')
 
 const app  = express()
 const PORT = process.env.PORT || 8081
@@ -23,7 +25,9 @@ app.get('/actuator/health', (_, res) => res.json({ status: 'UP' }))
 app.get('/health',          (_, res) => res.json({ status: 'UP', service: 'common-service' }))
 
 // ── Routes ────────────────────────────────────────────────────────────────────
-app.use('/api/v1/media', mediaRoutes)
+app.use('/api/v1/media',      mediaRoutes)
+app.use('/api/v1/brochure',   brochureRoutes)
+app.use('/api/v1/site-visit', siteVisitRoutes)
 
 // ── Handlers ──────────────────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ message: `Not found: ${req.method} ${req.path}` }))
