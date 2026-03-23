@@ -222,11 +222,17 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     if (msg.kind === 'reply' && msg.id.startsWith('proj_')) {
       projectId = msg.id.replace('proj_', '')
     } else if (msg.kind === 'text') {
-      const lc    = msg.text.toLowerCase()
-      const match = PROJECTS.find(p =>
-        p.title.toLowerCase().includes(lc) || p.id === lc
-      )
-      if (match) projectId = match.id
+      const lc = msg.text.toLowerCase().trim()
+      // Handle numbered replies from Twilio text menu (1-5)
+      const numMap = { '1':'anjana', '2':'aparna', '3':'varaha', '4':'trimbak', '5':'any' }
+      if (numMap[lc]) {
+        projectId = numMap[lc]
+      } else {
+        const match = PROJECTS.find(p =>
+          p.title.toLowerCase().includes(lc) || p.id === lc
+        )
+        if (match) projectId = match.id
+      }
     }
 
     if (!projectId) {
@@ -256,11 +262,15 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
       if (r.id === 'visit_skip')                  visitTime = 'Skipped'
       else if (r.id.startsWith('visit_'))         visitTime = r.text
     } else if (r.kind === 'text') {
-      const lc = r.text.toLowerCase()
-      if (['skip','no','not now','later'].includes(lc)) visitTime = 'Skipped'
-      else if (lc.includes('morning'))   visitTime = 'Morning (9am–12pm)'
-      else if (lc.includes('afternoon')) visitTime = 'Afternoon (12pm–4pm)'
-      else if (lc.includes('evening'))   visitTime = 'Evening (4pm–7pm)'
+      const lc = r.text.toLowerCase().trim()
+      // Handle numbered replies from Twilio text menu (1=Morning 2=Afternoon 3=Skip)
+      if (lc === '1')                                        visitTime = 'Morning (9am–12pm)'
+      else if (lc === '2')                                   visitTime = 'Afternoon (12pm–4pm)'
+      else if (lc === '3')                                   visitTime = 'Skipped'
+      else if (['skip','no','not now','later'].includes(lc)) visitTime = 'Skipped'
+      else if (lc.includes('morning'))                       visitTime = 'Morning (9am–12pm)'
+      else if (lc.includes('afternoon'))                     visitTime = 'Afternoon (12pm–4pm)'
+      else if (lc.includes('evening'))                       visitTime = 'Evening (4pm–7pm)'
     }
 
     if (!visitTime) {
@@ -286,11 +296,15 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
       if (r.id === 'cb_skip')              callbackTime = 'Skipped'
       else if (r.id.startsWith('cb_'))     callbackTime = r.text
     } else if (r.kind === 'text') {
-      const lc = r.text.toLowerCase()
-      if (['skip','no','not now','later'].includes(lc)) callbackTime = 'Skipped'
-      else if (lc.includes('morning'))   callbackTime = 'Morning (9am–12pm)'
-      else if (lc.includes('afternoon')) callbackTime = 'Afternoon (12pm–4pm)'
-      else if (lc.includes('evening'))   callbackTime = 'Evening (4pm–7pm)'
+      const lc = r.text.toLowerCase().trim()
+      // Handle numbered replies from Twilio text menu (1=Morning 2=Afternoon 3=Skip)
+      if (lc === '1')                                        callbackTime = 'Morning (9am–12pm)'
+      else if (lc === '2')                                   callbackTime = 'Afternoon (12pm–4pm)'
+      else if (lc === '3')                                   callbackTime = 'Skipped'
+      else if (['skip','no','not now','later'].includes(lc)) callbackTime = 'Skipped'
+      else if (lc.includes('morning'))                       callbackTime = 'Morning (9am–12pm)'
+      else if (lc.includes('afternoon'))                     callbackTime = 'Afternoon (12pm–4pm)'
+      else if (lc.includes('evening'))                       callbackTime = 'Evening (4pm–7pm)'
     }
 
     if (!callbackTime) {
