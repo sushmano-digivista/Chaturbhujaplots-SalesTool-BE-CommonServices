@@ -156,6 +156,7 @@ module.exports = router
 // ── GET /api/v1/webhook/debug — check env vars are loaded (remove in prod) ───
 router.get('/debug', (req, res) => {
   res.json({
+    version:         'v4-mongo-fix',
     hasTwilioSid:    !!process.env.TWILIO_ACCOUNT_SID,
     hasTwilioToken:  !!process.env.TWILIO_AUTH_TOKEN,
     hasWaToken:      !!process.env.WA_TOKEN,
@@ -163,4 +164,27 @@ router.get('/debug', (req, res) => {
     ownerPhone:      process.env.OWNER_PHONE || 'NOT SET',
     nodeEnv:         process.env.NODE_ENV || 'not set',
   })
+})
+
+// ── GET /api/v1/webhook/test-send — send a test message directly via Twilio ──
+router.get('/test-send', async (req, res) => {
+  try {
+    const twilio = require('twilio')
+    const client = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    const to     = req.query.to || process.env.OWNER_PHONE
+    const result = await client.messages.create({
+      from: `whatsapp:+${process.env.TWILIO_SANDBOX_NUMBER || '14155238886'}`,
+      to:   `whatsapp:+${to}`,
+      body: '✅ Test message from Chaturbhuja bot - setup working!',
+    })
+    res.json({ success: true, sid: result.sid, to, status: result.status })
+  } catch (err) {
+    res.json({
+      success:  false,
+      error:    err.message,
+      code:     err.code,
+      moreInfo: err.moreInfo,
+      status:   err.status,
+    })
+  }
 })
