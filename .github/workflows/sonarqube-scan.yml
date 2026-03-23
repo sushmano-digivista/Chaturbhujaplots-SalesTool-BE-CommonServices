@@ -26,31 +26,43 @@ jobs:
           cache: "npm"
 
       - name: Install Dependencies
-        run: npm install --legacy-peer-deps   # More resilient than npm ci for lock file mismatches
+        run: npm install --legacy-peer-deps
 
       - name: Check for Test Script
         id: check_tests
         run: |
-          if node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)" 2>/dev/null; then
-            echo "has_tests=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_tests=false" >> $GITHUB_OUTPUT
-          fi
+          node -e "const p=require('./package.json'); process.exit(p.scripts && p.scripts.test ? 0 : 1)" 2>/dev/null \
+            && echo "has_tests=true" >> $GITHUB_OUTPUT \
+            || echo "has_tests=false" >> $GITHUB_OUTPUT
 
       - name: Run Tests with Coverage
         if: steps.check_tests.outputs.has_tests == 'true'
         run: npm test -- --coverage --coverageReporters=lcov
-        continue-on-error: true     # Don't block scan if tests fail
+        continue-on-error: true
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v3
+        continue-on-error: true        # Non-blocking until Automatic Analysis is disabled in SonarCloud UI
+        id: sonar_scan
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
 
       - name: SonarCloud Quality Gate Check
         uses: SonarSource/sonarqube-quality-gate-action@master
+        continue-on-error: true        # Non-blocking until Automatic Analysis is disabled in SonarCloud UI
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
+      - name: SonarCloud Status Notice
+        if: steps.sonar_scan.outcome == 'failure'
+        run: |
+          echo "## ⚠️ SonarCloud - Action Required" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "SonarCloud Automatic Analysis is still enabled." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To fix: Go to each SonarCloud project → **Administration → Analysis Method** → turn OFF Automatic Analysis." >> $GITHUB_STEP_SUMMARY
+          echo "Once disabled, this step will pass automatically on the next run." >> $GITHUB_STEP_SUMMARY
+          echo "SonarCloud Automatic Analysis still enabled - please disable via SonarCloud UI"
