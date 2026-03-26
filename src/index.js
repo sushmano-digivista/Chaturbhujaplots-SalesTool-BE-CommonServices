@@ -1,4 +1,5 @@
 require('dotenv').config()
+const DEPLOY_VERSION = 'v5-questionnaire-bot-2026-03-26'  // identifies this deployment
 const express   = require('express')
 const cors      = require('cors')
 const mongoose  = require('mongoose')
@@ -54,7 +55,7 @@ app.use(async (req, res, next) => {
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/actuator/health', (_, res) => res.json({ status: 'UP' }))
-app.get('/health',          (_, res) => res.json({ status: 'UP', service: 'common-service' }))
+app.get('/health',          (_, res) => res.json({ status: 'UP', service: 'common-service', version: DEPLOY_VERSION }))
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/v1/media',      mediaRoutes)
@@ -76,6 +77,4 @@ if (process.env.NODE_ENV !== 'production') {
     .catch(err => { console.error('✗ Failed to start:', err); process.exit(1) })
 }
 
-// Deploy trigger: Mon Mar 23 22:27:46 UTC 2026
 module.exports = app
-// Vercel redeploy trigger: Thu Mar 26 05:34:39 UTC 2026
