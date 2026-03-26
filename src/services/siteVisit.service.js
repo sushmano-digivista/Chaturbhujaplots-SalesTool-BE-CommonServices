@@ -10,7 +10,7 @@
 'use strict'
 
 const nodemailer = require('nodemailer')
-const axios      = require('axios')
+const { sendText } = require('./whatsapp-sender')
 const { escapeHtml, sanitizeText } = require('../utils/sanitize')
 
 const OWNER_EMAIL = process.env.OWNER_EMAIL || 'info@chaturbhuja.in'
@@ -142,20 +142,15 @@ async function sendOwnerEmail({ name, phone, email, project, date }) {
 
 // ── WhatsApp helper ────────────────────────────────────────────────────────
 async function sendWhatsApp(toPhone, message) {
-  const waToken   = process.env.WA_TOKEN
-  const waPhoneId = process.env.WA_PHONE_ID
-  const clean     = String(toPhone).replace(/[^0-9]/g, '')
-  const e164      = clean.startsWith('91') ? clean : `91${clean}`
-
-  if (waToken && waPhoneId) {
-    const res = await axios.post(
-      `https://graph.facebook.com/v19.0/${waPhoneId}/messages`,
-      { messaging_product: 'whatsapp', to: e164, type: 'text', text: { body: message } },
-      { headers: { Authorization: `Bearer ${waToken}`, 'Content-Type': 'application/json' } }
-    )
-    return { method: 'cloud_api', id: res.data?.messages?.[0]?.id }
+  const clean = String(toPhone).replace(/[^0-9]/g, '')
+  const e164  = clean.startsWith('91') ? clean : `91${clean}`
+  try {
+    await sendText(e164, message)
+    return { method: 'sent' }
+  } catch (err) {
+    // Fallback to deeplink if sending fails
+    return { method: 'deeplink', deepLink: `https://wa.me/${e164}?text=${encodeURIComponent(message)}` }
   }
-  return { method: 'deeplink', deepLink: `https://wa.me/${e164}?text=${encodeURIComponent(message)}` }
 }
 
 // ── Customer WhatsApp ──────────────────────────────────────────────────────
