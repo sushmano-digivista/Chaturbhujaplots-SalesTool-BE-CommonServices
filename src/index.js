@@ -78,3 +78,4 @@ if (process.env.NODE_ENV !== 'production') {
 
 // Deploy trigger: Mon Mar 23 22:27:46 UTC 2026
 module.exports = app
+// Vercel redeploy trigger: Thu Mar 26 05:34:39 UTC 2026
