@@ -1,4 +1,5 @@
 require('dotenv').config()
+const DEPLOY_VERSION = 'v5-questionnaire-bot-2026-03-26'  // identifies this deployment
 const express   = require('express')
 const cors      = require('cors')
 const mongoose  = require('mongoose')
@@ -34,8 +35,16 @@ function ensureMongoConnected() {
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map(o => o.trim())
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) cb(null, true)
-    else cb(new Error(`CORS: ${origin} not allowed`))
+    // Allow requests with no origin (mobile apps, curl, Postman)
+    if (!origin) return cb(null, true)
+    // Allow all Vercel preview/production deployments for this project
+    if (
+      allowedOrigins.includes('*') ||
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('chaturbhuja')
+    ) return cb(null, true)
+    cb(new Error(`CORS: ${origin} not allowed`))
   },
   credentials: false,
 }))
@@ -54,7 +63,7 @@ app.use(async (req, res, next) => {
 
 // ── Health ────────────────────────────────────────────────────────────────────
 app.get('/actuator/health', (_, res) => res.json({ status: 'UP' }))
-app.get('/health',          (_, res) => res.json({ status: 'UP', service: 'common-service' }))
+app.get('/health',          (_, res) => res.json({ status: 'UP', service: 'common-service', version: DEPLOY_VERSION }))
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/v1/media',      mediaRoutes)
