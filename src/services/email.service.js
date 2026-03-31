@@ -17,8 +17,8 @@ const BROCHURE_URLS = {
   anjana:  `${FE_BASE}/brochures/Anjana_Paradise_Brochure.pdf`,
   aparna:  `${FE_BASE}/brochures/Aparna_Legacy_Brochure.pdf`,
   varaha:  `${FE_BASE}/brochures/Varaha_Virtue_Brochure.pdf`,
-  trimbak: null, // not yet available
-  general: `${FE_BASE}/brochures/Anjana_Paradise_Brochure.pdf`,
+  trimbak: `${FE_BASE}/brochures/Trimbak_Oaks_Brochure.pdf`,
+  general: `${FE_BASE}/brochures/Anjana_Paradise_Brochure.pdf`, // default fallback
 }
 
 // Allowed project IDs — prevent open-redirect via brochureUrl (Checkmarx CWE-601)
@@ -46,9 +46,6 @@ async function sendBrochureEmail({ to, name, projectId, projectName }) {
   const brochureUrl   = BROCHURE_URLS[safeProjectId] || BROCHURE_URLS['general']
 
   // If brochure still null (e.g. Trimbak not yet available), inform user gracefully
-  if (!brochureUrl) {
-    return { success: true, messageId: null, note: 'Brochure not yet available — team will send manually' }
-  }
 
   // Escape all user-supplied values before HTML interpolation (CWE-80)
   const safeName    = escapeHtml(sanitizeText(name)) || 'Valued Customer'
