@@ -153,6 +153,24 @@ async function sendBrochures(phone, session) {
   }
 }
 
+async function notifyOwnerNewLead(phone) {
+  const now = new Date().toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true
+  })
+  const msg =
+    `📱 *New WhatsApp Lead Started*\n\n` +
+    `👤 *Phone:* +${phone}\n` +
+    `⏰ *Time:* ${now} IST\n\n` +
+    `_Customer just started the questionnaire — they may need a follow-up if they drop off._`
+  try {
+    await sendText(OWNER_PHONE, msg)
+  } catch (e) {
+    console.warn('[questionnaire] Instant owner notification failed:', e.message)
+  }
+}
+
 async function notifyOwner(session) {
   const projectLabel = session.projectId === 'any'
     ? 'All Projects'
@@ -211,6 +229,8 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     await session.save()
     await sendWelcome(phone)
     await sendProjectQuestion(phone)
+    // Notify owner instantly when someone starts the questionnaire
+    notifyOwnerNewLead(phone).catch(() => {})
     return
   }
 

@@ -9,12 +9,14 @@
 const nodemailer = require('nodemailer')
 const { escapeHtml, sanitizeText } = require('../utils/sanitize')
 
+const FE_BASE = process.env.FE_BASE_URL || 'https://chaturbhujaplots-sales-tool-fe-cust.vercel.app'
+
 const BROCHURE_URLS = {
-  anjana:  'https://chaturbhuja.in/brochures/Anjana_Paradise_Brochure.pdf',
-  aparna:  'https://chaturbhuja.in/brochures/Aparna_Legacy_Brochure.pdf',
-  varaha:  'https://chaturbhuja.in/brochures/Varaha_Virtue_Brochure.pdf',
-  trimbak: 'https://chaturbhuja.in/brochures/Trimbak_Oaks_Brochure.pdf',
-  general: 'https://chaturbhuja.in/brochures/Chaturbhuja_Overview_Brochure.pdf',
+  anjana:  `${FE_BASE}/brochures/Anjana_Paradise_Brochure.pdf`,
+  aparna:  `${FE_BASE}/brochures/Aparna_Legacy_Brochure.pdf`,
+  varaha:  `${FE_BASE}/brochures/Varaha_Virtue_Brochure.pdf`,
+  trimbak: `${FE_BASE}/brochures/Trimbak_Oaks_Brochure.pdf`,
+  general: `${FE_BASE}/brochures/Anjana_Paradise_Brochure.pdf`, // default fallback
 }
 
 // Allowed project IDs — prevent open-redirect via brochureUrl (Checkmarx CWE-601)
@@ -39,7 +41,8 @@ function createTransport() {
 async function sendBrochureEmail({ to, name, projectId, projectName }) {
   // Only use known project IDs — fall back to 'general' for anything else
   const safeProjectId = ALLOWED_PROJECT_IDS.has(projectId) ? projectId : 'general'
-  const brochureUrl   = BROCHURE_URLS[safeProjectId]
+  const brochureUrl   = BROCHURE_URLS[safeProjectId] || BROCHURE_URLS['general']
+
 
   // Escape all user-supplied values before HTML interpolation (CWE-80)
   const safeName    = escapeHtml(sanitizeText(name)) || 'Valued Customer'
