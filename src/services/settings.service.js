@@ -1,9 +1,16 @@
 'use strict'
+/**
+ * settings.service.js
+ *
+ * Fetches owner contact details (phone, email) from MongoDB Settings collection.
+ * Falls back to environment variables if DB value is not found.
+ * Uses an in-memory cache (5 min TTL) to avoid hitting DB on every message.
+ */
 const Settings = require('../models/settings.model')
 
 let cache = {}
 let cacheTime = 0
-const CACHE_TTL = 5 * 60 * 1000
+const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
 async function getSetting(key, fallback = '') {
   const now = Date.now()

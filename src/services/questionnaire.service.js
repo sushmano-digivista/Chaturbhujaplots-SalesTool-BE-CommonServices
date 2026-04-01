@@ -28,6 +28,7 @@ const {
   normalisePhone,
 } = require('./whatsapp-sender')
 const { sanitizeText } = require('../utils/sanitize')
+const { getOwnerPhone } = require('./settings.service')  // ← fetch from DB
 
 // ── Project catalogue ─────────────────────────────────────────────────────────
 const PROJECTS = [
@@ -55,11 +56,6 @@ const CALLBACK_TIMES = [
   { id: 'cb_afternoon', title: 'Afternoon (12pm–4pm)' },
 ]
 
-const OWNER_PHONE = process.env.OWNER_PHONE || '919739762698'
-
-// Log at startup so Vercel Function Logs confirm the correct number is loaded
-console.log(`[questionnaire] OWNER_PHONE = ${OWNER_PHONE}`)
-
 // ── Extract message from Meta OR Twilio payload ───────────────────────────────
 function extractMessage(payload) {
   const type = payload?.type
@@ -69,12 +65,10 @@ function extractMessage(payload) {
   }
 
   if (type === 'interactive') {
-    // Meta: button_reply or list_reply
     const reply = payload.interactive?.button_reply || payload.interactive?.list_reply
     if (reply) return { kind: 'reply', id: reply.id || '', text: reply.title || '' }
   }
 
-  // Twilio numbered reply: webhook pre-built _visit / _callback alternatives
   if (payload._visit || payload._callback) {
     const main = payload.interactive?.list_reply
     return {
@@ -147,13 +141,14 @@ async function sendBrochures(phone, session) {
   for (const id of toSend) {
     const brochure = BROCHURES[id]
     if (brochure) {
-      await new Promise(r => setTimeout(r, 500))  // avoid rate limiting
+      await new Promise(r => setTimeout(r, 500))
       await sendDocument(phone, brochure)
     }
   }
 }
 
 async function notifyOwnerNewLead(phone) {
+  const ownerPhone = await getOwnerPhone()  // ← fetched from DB
   const now = new Date().toLocaleString('en-IN', {
     timeZone: 'Asia/Kolkata',
     day: '2-digit', month: 'short', year: 'numeric',
@@ -165,13 +160,14 @@ async function notifyOwnerNewLead(phone) {
     `⏰ *Time:* ${now} IST\n\n` +
     `_Customer just started the questionnaire — they may need a follow-up if they drop off._`
   try {
-    await sendText(OWNER_PHONE, msg)
+    await sendText(ownerPhone, msg)
   } catch (e) {
     console.warn('[questionnaire] Instant owner notification failed:', e.message)
   }
 }
 
 async function notifyOwner(session) {
+  const ownerPhone = await getOwnerPhone()  // ← fetched from DB
   const projectLabel = session.projectId === 'any'
     ? 'All Projects'
     : session.projectName || session.projectId || 'Not specified'
@@ -184,13 +180,12 @@ async function notifyOwner(session) {
     `📞 *Callback:*   ${session.callbackTime || 'Not specified'}\n\n` +
     `_Captured via WhatsApp questionnaire bot_`
 
-  await sendText(OWNER_PHONE, summary)
+  await sendText(ownerPhone, summary)
 }
 
 // ── Resolve step-aware reply for Twilio numbered inputs ───────────────────────
 function resolveReply(msg, step) {
   if (msg.kind === 'reply') {
-    // For Twilio payloads with _visit / _callback alternatives, return the right one
     if (step === 'AWAIT_VISIT'    && msg._visit    && !msg.id.startsWith('visit_')) {
       return { kind: 'reply', id: msg._visit.id,    text: msg._visit.title    }
     }
@@ -206,7 +201,6 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
   const phone = normalisePhone(rawPhone)
   const msg   = extractMessage(messagePayload)
 
-  // Get or create session
   let session = await WhatsappSession.findOne({ phone })
   if (!session) {
     session = await WhatsappSession.create({ phone, step: 'WELCOME' })
@@ -215,7 +209,6 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
   session.messageCount += 1
   session.lastActivity  = new Date()
 
-  // ── Reset / start trigger ────────────────────────────────────────────────
   const resetKeywords = ['hi', 'hello', 'hey', 'start', 'restart', 'hii', 'helo', 'namaste']
   const isReset = msg.kind === 'text' && resetKeywords.includes(msg.text.toLowerCase())
 
@@ -229,12 +222,10 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     await session.save()
     await sendWelcome(phone)
     await sendProjectQuestion(phone)
-    // Notify owner instantly when someone starts the questionnaire
     notifyOwnerNewLead(phone).catch(() => {})
     return
   }
 
-  // ── AWAIT_PROJECT ────────────────────────────────────────────────────────
   if (session.step === 'AWAIT_PROJECT') {
     let projectId   = ''
     let projectName = ''
@@ -243,7 +234,6 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
       projectId = msg.id.replace('proj_', '')
     } else if (msg.kind === 'text') {
       const lc = msg.text.toLowerCase().trim()
-      // Handle numbered replies from Twilio text menu (1-5)
       const numMap = { '1':'anjana', '2':'aparna', '3':'varaha', '4':'trimbak', '5':'any' }
       if (numMap[lc]) {
         projectId = numMap[lc]
@@ -273,17 +263,15 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     return
   }
 
-  // ── AWAIT_VISIT ──────────────────────────────────────────────────────────
   if (session.step === 'AWAIT_VISIT') {
     const r = resolveReply(msg, 'AWAIT_VISIT')
     let visitTime = ''
 
     if (r.kind === 'reply') {
-      if (r.id === 'visit_skip')                  visitTime = 'Skipped'
-      else if (r.id.startsWith('visit_'))         visitTime = r.text
+      if (r.id === 'visit_skip')          visitTime = 'Skipped'
+      else if (r.id.startsWith('visit_')) visitTime = r.text
     } else if (r.kind === 'text') {
       const lc = r.text.toLowerCase().trim()
-      // Handle numbered replies from Twilio text menu (1=Morning 2=Afternoon 3=Skip)
       if (lc === '1')                                        visitTime = 'Morning (9am–12pm)'
       else if (lc === '2')                                   visitTime = 'Afternoon (12pm–4pm)'
       else if (lc === '3')                                   visitTime = 'Skipped'
@@ -307,17 +295,15 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     return
   }
 
-  // ── AWAIT_CALLBACK ───────────────────────────────────────────────────────
   if (session.step === 'AWAIT_CALLBACK') {
     const r = resolveReply(msg, 'AWAIT_CALLBACK')
     let callbackTime = ''
 
     if (r.kind === 'reply') {
-      if (r.id === 'cb_skip')              callbackTime = 'Skipped'
-      else if (r.id.startsWith('cb_'))     callbackTime = r.text
+      if (r.id === 'cb_skip')            callbackTime = 'Skipped'
+      else if (r.id.startsWith('cb_'))   callbackTime = r.text
     } else if (r.kind === 'text') {
       const lc = r.text.toLowerCase().trim()
-      // Handle numbered replies from Twilio text menu (1=Morning 2=Afternoon 3=Skip)
       if (lc === '1')                                        callbackTime = 'Morning (9am–12pm)'
       else if (lc === '2')                                   callbackTime = 'Afternoon (12pm–4pm)'
       else if (lc === '3')                                   callbackTime = 'Skipped'
@@ -349,7 +335,6 @@ async function handleIncomingMessage(rawPhone, messagePayload) {
     return
   }
 
-  // ── DONE ─────────────────────────────────────────────────────────────────
   await sendText(phone,
     `👋 Your details are already captured! Our team will reach out shortly.\n\nType *hi* to start a new enquiry or call 📞 +91 89772 62683.`
   )
