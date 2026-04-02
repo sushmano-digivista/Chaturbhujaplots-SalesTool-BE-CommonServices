@@ -9,6 +9,8 @@
 const nodemailer = require('nodemailer')
 const { escapeHtml, sanitizeText } = require('../utils/sanitize')
 
+// PDFs are served from the Customer Frontend Vercel deployment under /public/brochures/
+// Trimbak is null — brochure not yet available
 const FE_BASE = process.env.FE_BASE_URL || 'https://chaturbhujaplots-sales-tool-fe-cust.vercel.app'
 
 const BROCHURE_URLS = {
@@ -43,6 +45,7 @@ async function sendBrochureEmail({ to, name, projectId, projectName }) {
   const safeProjectId = ALLOWED_PROJECT_IDS.has(projectId) ? projectId : 'general'
   const brochureUrl   = BROCHURE_URLS[safeProjectId] || BROCHURE_URLS['general']
 
+  // If brochure still null (e.g. Trimbak not yet available), inform user gracefully
 
   // Escape all user-supplied values before HTML interpolation (CWE-80)
   const safeName    = escapeHtml(sanitizeText(name)) || 'Valued Customer'

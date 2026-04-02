@@ -1,43 +1,34 @@
 'use strict'
-/**
- * settings.service.js
- *
- * Fetches owner contact details (phone, email) from MongoDB Settings collection.
- * Falls back to environment variables if DB value is not found.
- * Uses an in-memory cache (5 min TTL) to avoid hitting DB on every message.
- */
-const Settings = require('../models/settings.model')
+const mongoose = require('mongoose')
 
-let cache = {}
-let cacheTime = 0
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+// Inline schema — no separate model file needed
+const Settings = mongoose.models.Settings || mongoose.model('Settings',
+  new mongoose.Schema(
+    { key: { type: String, required: true, unique: true },
+      value: { type: String, required: true } },
+    { timestamps: true }
+  )
+)
+
+// 5-minute in-memory cache
+let _cache = {}
+let _cacheTime = 0
+const CACHE_TTL = 5 * 60 * 1000
 
 async function getSetting(key, fallback = '') {
   const now = Date.now()
-  if (cache[key] !== undefined && (now - cacheTime) < CACHE_TTL) {
-    return cache[key]
-  }
+  if (_cache[key] !== undefined && (now - _cacheTime) < CACHE_TTL) return _cache[key]
   try {
     const doc = await Settings.findOne({ key })
-    if (doc) {
-      cache[key] = doc.value
-      cacheTime = now
-      console.log(`[settings] Loaded '${key}' from DB`)
-      return doc.value
-    }
+    if (doc) { _cache[key] = doc.value; _cacheTime = now; return doc.value }
   } catch (e) {
     console.warn(`[settings] DB lookup failed for '${key}':`, e.message)
   }
-  console.warn(`[settings] '${key}' not found in DB, using fallback`)
   return fallback
 }
 
-async function getOwnerPhone() {
-  return getSetting('ownerPhone', process.env.OWNER_PHONE || '919739762698')
-}
+async function getOwnerPhone()          { return getSetting('ownerPhone',           process.env.OWNER_PHONE || '') }
+async function getOwnerEmail()          { return getSetting('ownerEmail',            process.env.OWNER_EMAIL || '') }
+async function getAparnContactAddress() { return getSetting('aparna_contact_address', '') }
 
-async function getOwnerEmail() {
-  return getSetting('ownerEmail', process.env.OWNER_EMAIL || '')
-}
-
-module.exports = { getSetting, getOwnerPhone, getOwnerEmail }
+module.exports = { getSetting, getOwnerPhone, getOwnerEmail, getAparnContactAddress }

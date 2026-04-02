@@ -1,23 +1,22 @@
 'use strict'
-/**
- * settings.routes.js
- * Public endpoint to expose owner contact settings from MongoDB.
- * GET /api/v1/settings/contact → { ownerPhone, ownerEmail }
- */
-const express = require('express')
-const router  = express.Router()
-const { getOwnerPhone, getOwnerEmail } = require('../services/settings.service')
+const express  = require('express')
+const { getOwnerPhone, getOwnerEmail, getAparnContactAddress } = require('../services/settings.service')
 
+const router = express.Router()
+
+// GET /api/v1/settings/contact
+// Returns all contact-related settings from MongoDB
 router.get('/contact', async (req, res) => {
   try {
-    const [ownerPhone, ownerEmail] = await Promise.all([
+    const [ownerPhone, ownerEmail, aparna_contact_address] = await Promise.all([
       getOwnerPhone(),
       getOwnerEmail(),
+      getAparnContactAddress(),
     ])
-    res.json({ ownerPhone, ownerEmail })
+    res.json({ ownerPhone, ownerEmail, aparna_contact_address })
   } catch (err) {
-    console.error('[settings.routes] Failed to fetch contact settings:', err.message)
-    res.status(500).json({ error: 'Failed to load contact settings' })
+    console.error('[settings] Failed to fetch contact settings:', err.message)
+    res.status(500).json({ message: 'Failed to fetch settings' })
   }
 })
 
