@@ -8,15 +8,20 @@
 const request = require('supertest')
 
 // ── Mock mongoose ────────────────────────────────────────────────────────────
-jest.mock('mongoose', () => ({
-  connection: { readyState: 1 },
-  connect: jest.fn().mockResolvedValue({}),
-  model: jest.fn().mockReturnValue({}),
-  Schema: jest.fn().mockImplementation(function () {
+jest.mock('mongoose', () => {
+  const SchemaMock = jest.fn().mockImplementation(function () {
     this.index = jest.fn()
     return this
-  }),
-}))
+  })
+  SchemaMock.Types = { Mixed: {} }
+  return {
+    connection: { readyState: 1 },
+    connect:    jest.fn().mockResolvedValue({}),
+    model:      jest.fn().mockReturnValue({}),
+    models:     {},
+    Schema:     SchemaMock,
+  }
+})
 
 // ── Mock all route modules ───────────────────────────────────────────────────
 jest.mock('../src/routes/media.routes', () => {
@@ -37,6 +42,11 @@ jest.mock('../src/routes/siteVisit.routes', () => {
 jest.mock('../src/routes/webhook.routes', () => {
   const r = require('express').Router()
   r.get('/test', (_, res) => res.json({ route: 'webhook' }))
+  return r
+})
+jest.mock('../src/routes/settings.routes', () => {
+  const r = require('express').Router()
+  r.get('/test', (_, res) => res.json({ route: 'settings' }))
   return r
 })
 
