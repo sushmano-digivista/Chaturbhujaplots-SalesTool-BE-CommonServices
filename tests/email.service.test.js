@@ -45,7 +45,7 @@ describe('sendBrochureEmail', () => {
     const transport = nodemailer.createTransport()
     expect(transport.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
-        html: expect.stringContaining('Chaturbhuja_Overview_Brochure.pdf'),
+        html: expect.stringContaining('Anjana_Paradise_Brochure.pdf'),
       })
     )
   })
