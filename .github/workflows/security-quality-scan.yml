@@ -25,12 +25,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v4.4.0
         with:
-          node-version: "20"
+          node-version: "24"
           cache: "npm"
 
       - name: Install Dependencies
@@ -43,7 +43,7 @@ jobs:
           NODE_ENV: test
 
       - name: Upload Coverage Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         if: always()
         with:
           name: coverage-report
