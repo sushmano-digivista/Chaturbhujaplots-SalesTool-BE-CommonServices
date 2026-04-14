@@ -13,7 +13,7 @@ const nodemailer = require('nodemailer')
 const { sendText } = require('./whatsapp-sender')
 const { escapeHtml, sanitizeText } = require('../utils/sanitize')
 
-const OWNER_EMAIL = process.env.OWNER_EMAIL || 'info@chaturbhuja.in'
+const OWNER_EMAIL = process.env.OWNER_EMAIL || 'chaturbhujaplots@gmail.com'
 const OWNER_PHONE = process.env.OWNER_PHONE || '919739762698'
 const SITE_URL    = process.env.SITE_URL    || 'https://chaturbhuja.in'
 
